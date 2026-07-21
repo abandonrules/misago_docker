@@ -37,6 +37,47 @@ invalid_argument() {
     exit 1
 }
 
+# Bootstrap plugins at the build time
+bootstrap_plugins() {
+    if [ -d $MISAGO_PLUGINS ]; then
+        echo "Bootstrapping plugins..."
+
+        glob_pattern="$MISAGO_PLUGINS/*/*/misago_plugin.py"
+        for plugin in $glob_pattern; do
+            plugin_dir=$(dirname $(dirname "$plugin"))
+            plugin_name=$(basename $plugin_dir)
+            plugin_pyproject="$plugin_dir/pyproject.toml"
+            plugin_requirements="$plugin_dir/requirements.txt"
+            plugin_requirements_dev="$plugin_dir/requirements-dev.txt"
+
+            if [ -f $plugin_pyproject ]; then
+                echo "Installing: $plugin_pyproject"
+                pip install --no-cache-dir -e "$plugin_dir[dev]"
+            elif [ -f $plugin_requirements ]; then
+                echo "Installing: $plugin_requirements"
+                pip install --no-cache-dir -r $plugin_requirements
+                if [ -f $plugin_requirements_dev ]; then
+                    echo "Installing: $plugin_requirements_dev"
+                    pip install --no-cache-dir -r $plugin_requirements_dev
+                fi
+            elif [ -f $plugin_requirements_dev ]; then
+                echo "Installing: $plugin_requirements_dev"
+                pip install --no-cache-dir -r $plugin_requirements_dev
+            else
+                echo "Skipping plugin bootstrap for: $plugin_name"
+            fi
+        done
+
+        pip_install="$MISAGO_PLUGINS/pip-install.txt"
+        if [ -f $pip_install ]; then
+            echo "Installing: $pip_install"
+            pip install --no-cache-dir -r $pip_install
+        fi
+    else
+        echo "Skipping plugin bootstrap because plugins directory doesn't exist."
+    fi
+}
+
 # Initialize default database
 initialize_default_database() {
     wait_for_db
@@ -54,22 +95,54 @@ run_psql() {
     psql --username $POSTGRES_USER --host $POSTGRES_HOST $POSTGRES_USER
 }
 
-# Backup database
-backup_db() {
+# Create new backup
+create_backup() {
+    if [[ ! $1 ]]; then
+        echo -e "Missing argument: ${RED}backup_name${NORMAL}"
+        echo
+        exit 1
+    fi
+    backup=$1
+    backup_tmp="/tmp/$backup"
+    backup_archive="$backup.tar.gz"
     wait_for_db
-    pg_dump -U $POSTGRES_USER -h $POSTGRES_HOST $POSTGRES_USER -Oxc > "/misago/backups/$1/database.sql"
+    echo "Initializing backup $backup"
+    mkdir $backup_tmp
+    echo "Preparing database..."
+    pg_dump -U $POSTGRES_USER -h $POSTGRES_HOST $POSTGRES_USER -Oxc > "$backup_tmp/database.sql"
+    echo "Preparing media files..."
+    cp -r /misago/media "$backup_tmp/media"
+    echo "Archiving..."
+    GZIP=-9
+    cd "/tmp/"
+    tar -zcf $backup_archive $backup
+    echo "Cleaning up..."
+    cd /misago/
+    mv "/tmp/$backup_archive" "/misago/backups/$backup_archive"
+    rm -rf $backup_tmp
+    echo "New backup: $backup.tar.gz"
+}
+
+# Import database to backup during major upgrade
+complete_v1_upgrade() {
+    wait_for_db
+    psql --username $POSTGRES_USER --host $POSTGRES_HOST $POSTGRES_USER < "/misago/backups/postgresql10.sql"
 }
 
 # Command dispatcher
 if [[ $1 ]]; then
-    if [[ $1 = "initialize_default_database" ]]; then
+    if [[ $1 = "bootstrap_plugins" ]]; then
+        bootstrap_plugins
+    elif [[ $1 = "initialize_default_database" ]]; then
         initialize_default_database
     elif [[ $1 = "wait_for_db" ]]; then
         wait_for_db
     elif [[ $1 = "psql" ]]; then
         run_psql
-    elif [[ $1 = "backup_db" ]]; then
-        backup_db $2
+    elif [[ $1 = "backup" ]]; then
+        create_backup $2
+    elif [[ $1 = "complete_v1_upgrade" ]]; then
+        complete_v1_upgrade
     else
         invalid_argument $1
     fi

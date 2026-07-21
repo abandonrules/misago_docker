@@ -12,7 +12,8 @@ https://docs.djangoproject.com/en/1.11/ref/settings/
 
 import os
 
-from misago import load_plugin_list_if_exists
+from misago import discover_plugins
+from misago.settings import *
 
 from .utils import strtobool, strtolist
 
@@ -50,7 +51,7 @@ DATABASES = {
     'default': {
         # Misago requires PostgreSQL to run
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('POSTGRES_USER'),
+        'NAME': os.environ.get('POSTGRES_DB'),
         'USER': os.environ.get('POSTGRES_USER'),
         'PASSWORD': os.environ.get('POSTGRES_PASSWORD'),
         'HOST': os.environ.get('POSTGRES_HOST'),
@@ -58,17 +59,15 @@ DATABASES = {
     }
 }
 
+DEFAULT_AUTO_FIELD = "django.db.models.AutoField" 
 
 # Caching
 # https://docs.djangoproject.com/en/1.11/topics/cache/#setting-up-the-cache
 
 CACHES = {
     "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://redis/1",
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-        }
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": os.environ.get('CACHE_REDIS_URL', "redis://redis-6/1"),
     }
 }
 
@@ -106,8 +105,6 @@ LANGUAGE_CODE = os.environ.get('MISAGO_LANGUAGE_CODE', 'en-us')
 TIME_ZONE = os.environ.get('MISAGO_TIME_ZONE', 'UTC')
 
 USE_I18N = True
-
-USE_L10N = True
 
 USE_TZ = True
 
@@ -205,54 +202,15 @@ CSRF_COOKIE_SECURE = True
 
 CSRF_FAILURE_VIEW = 'misago.core.errorpages.csrf_failure'
 
-PLUGINS_LIST_PATH = os.path.join(BASE_DIR, "plugins.txt")
+PLUGINS_DIRECTORY = os.environ.get("MISAGO_PLUGINS")
 
-INSTALLED_PLUGINS = load_plugin_list_if_exists(PLUGINS_LIST_PATH) or []
+INSTALLED_PLUGINS = discover_plugins(PLUGINS_DIRECTORY)
 
-INSTALLED_APPS = INSTALLED_PLUGINS + [
-    # Misago overrides for Django core feature
-    'misago',
-    'misago.users',
-
-    # Django apps
-    "django.contrib.admin",
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
-    "django.contrib.postgres",
-    "django.contrib.humanize",
-    "django.contrib.sessions",
-    "django.contrib.messages",
-    "django.contrib.staticfiles",
-
-    # 3rd party apps used by Misago
-    "ariadne.contrib.django",
-    "celery",
-    "debug_toolbar",
-    "mptt",
-    "rest_framework",
-    "social_django",
-
-    # Misago apps
-    "misago.admin",
-    "misago.acl",
-    "misago.analytics",
-    "misago.cache",
-    "misago.core",
-    "misago.conf",
-    "misago.icons",
-    "misago.themes",
-    "misago.markup",
-    "misago.legal",
-    "misago.categories",
-    "misago.threads",
-    "misago.readtracker",
-    "misago.search",
-    "misago.socialauth",
-    "misago.graphql",
-    "misago.faker",
-    "misago.menus",
-    "misago.sso",
-    "misago.plugins",
+INSTALLED_APPS = [
+    *INSTALLED_PLUGINS,
+    *INSTALLED_APPS,
+    # Extra apps used by misago-docker
+    "anymail",
 ]
 
 INTERNAL_IPS = [
@@ -260,6 +218,8 @@ INTERNAL_IPS = [
 ]
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
 
 LOGIN_REDIRECT_URL = 'misago:index'
 
@@ -334,7 +294,7 @@ SOCIAL_AUTH_PIPELINE = (
     'misago.socialauth.pipeline.require_activation',
 )
 
-SOCIAL_AUTH_POSTGRES_JSONFIELD = True
+SOCIAL_AUTH_JSONFIELD_ENABLED = True
 
 TEMPLATES = [
     {
@@ -344,42 +304,7 @@ TEMPLATES = [
         ],
         'APP_DIRS': True,
         'OPTIONS': {
-            'context_processors': [
-                "django.template.context_processors.debug",
-                "django.template.context_processors.i18n",
-                "django.template.context_processors.media",
-                "django.template.context_processors.request",
-                "django.template.context_processors.static",
-                "django.template.context_processors.tz",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
-
-                "misago.acl.context_processors.user_acl",
-                "misago.conf.context_processors.conf",
-                "misago.conf.context_processors.og_image",
-                "misago.core.context_processors.misago_version",
-                "misago.core.context_processors.request_path",
-                "misago.core.context_processors.momentjs_locale",
-                "misago.icons.context_processors.icons",
-                "misago.search.context_processors.search_providers",
-                "misago.themes.context_processors.theme",
-                "misago.legal.context_processors.legal_links",
-                "misago.menus.context_processors.menus",
-                "misago.users.context_processors.user_links",
-                "misago.core.context_processors.hooks",
-
-                # Data preloaders
-                "misago.conf.context_processors.preload_settings_json",
-                "misago.core.context_processors.current_link",
-                "misago.markup.context_processors.preload_api_url",
-                "misago.threads.context_processors.preload_threads_urls",
-                "misago.users.context_processors.preload_user_json",
-                "misago.socialauth.context_processors.preload_socialauth_json",
-
-                # Note: keep frontend_context processor last for previous processors
-                # to be able to expose data UI app via request.frontend_context
-                'misago.core.context_processors.frontend_context',
-            ],
+            'context_processors': TEMPLATE_CONTEXT_PROCESSORS,
         },
     },
 ]
@@ -404,7 +329,6 @@ DEBUG_TOOLBAR_PANELS = [
     'debug_toolbar.panels.templates.TemplatesPanel',
     'debug_toolbar.panels.cache.CachePanel',
     'debug_toolbar.panels.signals.SignalsPanel',
-    'debug_toolbar.panels.logging.LoggingPanel',
 ]
 
 
@@ -429,7 +353,7 @@ REST_FRAMEWORK = {
 
 # Configure Celery to use Redis as message broker.
 
-CELERY_BROKER_URL = "redis://redis/0"
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', "redis://redis-6/0")
 
 # Celery workers may leak the memory, eventually depriving the instance of resources.
 # This setting forces celery to stop worker, clean after it and create new one
