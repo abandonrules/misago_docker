@@ -1,31 +1,32 @@
 Misago Docker
 =============
 
-This repository provides production-ready setup of Misago for people who:
+This repository provides a production-ready setup of Misago for people who:
 
-- Want to run their own forum using Misago
-- Have a server with 2GB of RAM and Docker lying around
-- Know enough of Linux to ssh to VPS, move around, modify files, run programs and follow instructions from guides
+- Want to run their own forum using Misago.
+- Have a server with 1GB of RAM and Docker available.
+- Have basic knowledge of Linux to SSH to a VPS, navigate the file system, modify files, run programs, and follow instructions from guides.
 
-It provides Misago forum running on Python 3.7 behind Nginx reverse proxy with Https enabled via Let's Encrypt, PostgreSQL database and Redis for caching.
+It sets up Misago forum running on Python 3.12 behind an NGINX reverse proxy with HTTPS enabled using Let's Encrypt. It uses PostgreSQL for the database and Redis for caching and messaging. Celery is included for task queue functionality.
 
-To help you running your site, there is a special tool called `appctl` provided, that consists of shortcuts for useful actions, and exposes wizards for configuration management without the need for manually editing files.
+To help you with running your site, the repository includes a tool called `appctl` that provides shortcuts for common actions and wizards for configuration management, eliminating the need for manual file editing.
 
-**Note for DevOps pros:** this repo assumes that users will `git clone` it on to their servers, run `./appctl setup` to do basic configuration, and run all services they need in Docker Compose, with all data stored on instance using Docker volumes. This approach is incompatibile with setups where everything runs in dedicated instance or service (like Amazon's S3 or RDS), but the aim of this repo is to make Misago viable option to hobbyists and small/medium communities, not enterprise deployments that will expect running at massive scale serving bazillions of active users at single time.
-
+**Note for DevOps pros:** This repository assumes that users will clone it onto their servers using `git clone`, run `./appctl setup` for basic configuration, and run all necessary services in Docker Compose with data stored on the server using Docker volumes. This approach is compatible with setups where services run on dedicated instances or services like Amazon S3 or RDS. The goal of this repository is to make Misago a viable option for hobbyists and small/medium communities, rather than enterprise deployments that require massive scalability to serve a large number of active users simultaneously.
 
 Setup
 -----
 
+For a complete step-by-step setup guide, please refer to [the documentation](https://misago.gitbook.io/docs/setup).
+
 To start your own Misago site, you will need:
 
-- server running Linux with Docker and 2GB of memory ([DigitalOcean droplets are safe bet](https://m.do.co/c/a8c85735320a))
-- domain your site will run at, configured to point at your server
+- A server running Linux with Docker, Compose plugin and at least 1GB of memory (DigitalOcean droplets are a recommended option).
+- A domain configured to point to your server.
 
 
-### Getting code on the server
+### Getting code on a server
 
-`ssh` to your server. If you are on Windows, you can use [Putty](https://www.putty.org/). Next, git clone this repo to using this command:
+`ssh` to your server. If you are on Windows, you can use [PuTTY](https://www.putty.org/). Next, clone this repo using the following command:
 
 ```
 git clone https://github.com/rafalp/misago_docker.git --depth=1
@@ -38,10 +39,10 @@ This will create `misago_docker` directory that you can then `cd` to and continu
 
 Enter the misago_docker directory and run `./appctl setup` command. The wizard will let you set basic settings for your site: your domain name, timezone or first admin account details. After that it will:
 
-- install all requirements
-- build Docker containers
-- setup `crontab` that will run daily maintenance
-- create database and populate it with initial data
+- Install all the requirements.
+- Build Docker containers.
+- Setup `crontab` that will run daily maintenance.
+- Create database and populate it with initial data.
 
 When `setup` finishes, visit your domain in order to see your Misago forum running.
 
@@ -225,7 +226,7 @@ Python scripts that `./appctl` runs when it needs to create or change `.env` fil
 Conserving disk space
 ---------------------
 
-Docker overhead on CPU and memory is negligible, but same can't be said about its disk usage. `./appctl` tries to cleanup whenever possible, but to be safe you will have to monitor amount of free space left on your server, and clean up once in a while using commands like `docker-compose image prune`, manually emptying older logs and backups stored in `logs` and `backups` directories.
+Docker overhead on CPU and memory is negligible, but same can't be said about its disk usage. `./appctl` tries to cleanup whenever possible, but to be safe you will have to monitor amount of free space left on your server, and clean up once in a while using commands like `docker compose image prune`, manually emptying older logs and backups stored in `logs` and `backups` directories.
 
 Default cron task will also try to delete log files older than 60 days.
 
@@ -233,7 +234,7 @@ Default cron task will also try to delete log files older than 60 days.
 Need help?
 ----------
 
-If you have problems setting up your site using `misago_docker`, feel free to ask on [our forums](https://misago-project.org/) or [Discord Chat](https://discord.gg/fwvrZgB). Please don't use Github issues!
+If you have problems setting up your site using `misago_docker`, feel free to ask on [our forums](https://misago-project.org/c/docker/27/) or [Discord Chat](https://discord.gg/fwvrZgB). Please don't use Github issues!
 
 
 Contributing

@@ -14,39 +14,49 @@ Including another URLconf
     2. Add a URL to urlpatterns:  url(r'^blog/', include('blog.urls'))
 """
 from django.conf import settings
-from django.conf.urls import include, url
+from django.urls import include, path
 from django.conf.urls.static import static
 from django.utils import timezone
 from django.views.decorators.cache import cache_page
 from django.views.decorators.http import last_modified
 from django.views.i18n import JavaScriptCatalog
-
+from misago import __released__, __version__
+from misago.plugins.urlpatterns import discover_plugins_urlpatterns
 
 # Import urls override or default to no urls
 try:
-    from .urls_override import urlpatterns as urlpatterns_override
+    from .urls_override import urlpatterns as override_urlpatterns
 except ImportError:
-    urlpatterns_override = []
+    override_urlpatterns = []
+
+
+# Cache key for django-i18n.js view that invalidates cache when
+# Misago version, release status or language code changes
+misago_i18n_cache_key = (
+    (f"misagojsi18n_{settings.LANGUAGE_CODE}_{__version__}_{__released__}")
+    .replace(".", "_")
+    .replace("-", "_")
+    .lower()
+)
+
+
+# Discover plugins urlpatterns
+plugins_urlpatterns = discover_plugins_urlpatterns(settings.INSTALLED_PLUGINS)
 
 
 # Add standard URL's
-urlpatterns = urlpatterns_override + [
-    url(r'^', include('misago.urls', namespace='misago')),
-
-    # django-simple-sso doesn't have namespaces, we can't use namespace here
-    url(r"^sso/", include("misago.sso.urls")),
+urlpatterns = override_urlpatterns + plugins_urlpatterns + [
+    path("", include("misago.urls", namespace="misago")),
 
     # Javascript translations
-    url(
-        r'^django-i18n.js$',
+    path(
+        "django-i18n.js",
         last_modified(lambda req, **kw: timezone.now())(
-            cache_page(86400 * 2, key_prefix='misagojsi18n')(
-                JavaScriptCatalog.as_view(
-                    packages=['misago'],
-                ),
-            ),
+            cache_page(86400 * 14, key_prefix=misago_i18n_cache_key)(
+                JavaScriptCatalog.as_view(packages=["misago"])
+            )
         ),
-        name='django-i18n',
+        name="django-i18n",
     ),
 ]
 
@@ -54,9 +64,8 @@ urlpatterns = urlpatterns_override + [
 # If debug mode is enabled, include debug toolbar
 if settings.DEBUG:
     import debug_toolbar
-    urlpatterns += [
-        url(r'^__debug__/', include(debug_toolbar.urls)),
-    ]
+
+    urlpatterns += [path("__debug__/", include(debug_toolbar.urls))]
 
 
 # Use static file server for static and media files (debug only)
